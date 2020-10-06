@@ -62,6 +62,9 @@ class CA(base.BaseEstimator, base.TransformerMixin):
             engine=self.engine
         )
 
+        self.U_ = pd.DataFrame(self.U_, index=row_names)
+        self.V_ = pd.DataFrame(self.V_, columns=col_names)
+
         # Compute total inertia
         self.total_inertia_ = np.einsum('ij,ji->', S, S.T)
 
@@ -113,7 +116,7 @@ class CA(base.BaseEstimator, base.TransformerMixin):
         """The row principal coordinates."""
         self._check_is_fitted()
 
-        _, row_names, _, _ = util.make_labels_and_names(X)
+        _, row_names, _, col_names = util.make_labels_and_names(X)
 
         if isinstance(X, pd.DataFrame):
             try:
@@ -130,8 +133,11 @@ class CA(base.BaseEstimator, base.TransformerMixin):
         else:
             X = X / X.sum(axis=1)
 
+        col_masses_ = self.col_masses_[col_names].to_numpy()
+        Vt = self.V_[col_names].T.to_numpy()
+
         return pd.DataFrame(
-            data=X @ sparse.diags(self.col_masses_.to_numpy() ** -0.5) @ self.V_.T,
+            data=X @ sparse.diags(col_masses_ ** -.5) @ Vt,
             index=row_names
         )
 
@@ -139,7 +145,7 @@ class CA(base.BaseEstimator, base.TransformerMixin):
         """The column principal coordinates."""
         self._check_is_fitted()
 
-        _, _, _, col_names = util.make_labels_and_names(X)
+        _, row_names, _, col_names = util.make_labels_and_names(X)
 
         if isinstance(X, pd.DataFrame):
             is_sparse = X.dtypes.apply(pd.api.types.is_sparse).all()
@@ -157,8 +163,11 @@ class CA(base.BaseEstimator, base.TransformerMixin):
         else:
             X = X.T / X.T.sum(axis=1)
 
+        row_masses = self.row_masses_[row_names].to_numpy()
+        U = self.U_.loc[row_names].to_numpy()
+
         return pd.DataFrame(
-            data=X @ sparse.diags(self.row_masses_.to_numpy() ** -0.5) @ self.U_,
+            data=X @ sparse.diags(row_masses ** -0.5) @ U,
             index=col_names
         )
 
