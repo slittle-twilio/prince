@@ -138,6 +138,44 @@ class MFA(pca.PCA):
         X_global.index = X.index
         return X_global
 
+    def _build_X_global_name_cols(self, X):
+        X_partials = []
+
+        for name, cols in sorted(self.groups.items()):
+            X_partial = X.loc[:, cols]
+
+            # Dummify if there are categorical variable
+            if not self.all_nums_[name]:
+
+                # From FactoMineR MFA code, needs checking
+                try:
+                    tmp= pd.DataFrame(self.enc.transform(X_partial))
+                except AttributeError:
+                    self.enc = OneHotEncoder(handle_unknown='ignore', sparse=False)
+                    self.enc.fit(X_partial)
+                    tmp= pd.DataFrame(self.enc.transform(X_partial))
+                centre_tmp = tmp.mean() / len(tmp)
+                tmp2 = tmp / len(tmp)
+                poids_bary = tmp2.sum()
+                poids_tmp = 1 - tmp2.sum()
+                ponderation = poids_tmp ** .5 / (self.partial_factor_analysis_[name].s_[0] * len(cols))
+
+                normalize = lambda x: x / (np.sqrt((x ** 2).sum()) or 1)
+                tmp = (tmp - tmp.mean()).apply(normalize, axis='rows')
+
+                X_partial = tmp
+                X_partial *= ponderation ** .5
+
+                X_partials.append(X_partial)
+
+            else:
+
+                X_partials.append(X_partial / self.partial_factor_analysis_[name].s_[0])
+
+        X_global = pd.concat(X_partials, axis='columns')
+        X_global.index = X.index
+        return X_global
+
     def transform(self, X):
         """Returns the row principal coordinates of a dataset."""
         return self.row_coordinates(X)
