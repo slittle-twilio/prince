@@ -140,8 +140,9 @@ class MFA(pca.PCA):
 
     def _build_X_global_name_cols(self, X):
         X_partials = []
+        self.col_types = self.groups.items()
 
-        for name, cols in sorted(self.groups.items()):
+        for name, cols in sorted(self.col_types):
             X_partial = X.loc[:, cols]
 
             # Dummify if there are categorical variable
@@ -174,7 +175,16 @@ class MFA(pca.PCA):
 
         X_global = pd.concat(X_partials, axis='columns')
         X_global.index = X.index
-        return X_global
+
+        # return column names and values
+        split_names = []
+        for i,field in enumerate(self.enc.feature_names_in_):
+            for value in self.enc.categories_[i]:
+                split_names.append( [field,value] )
+        for field in dict(self.col_types)['Numerical']:
+            split_names.append([field,field])
+
+        return X_global, split_names
 
     def transform(self, X):
         """Returns the row principal coordinates of a dataset."""
@@ -258,6 +268,21 @@ class MFA(pca.PCA):
             }
             for component in row_pc.columns
         }).sort_index()
+
+    def column_correlations_test(self, X):
+        """Returns the column correlations."""
+        self._check_is_fitted()
+
+        X_global = self._build_X_global(X)
+        row_pc = self._row_coordinates_from_global(X_global)
+
+        return pd.DataFrame({
+            component: {
+                feature: row_pc[component].corr(X_global[feature])
+                for feature in X_global.columns
+            }
+            for component in row_pc.columns
+        })#.sort_index()
 
     def plot_partial_row_coordinates(self, X, ax=None, figsize=(6, 6), x_component=0, y_component=1,
                                      color_labels=None, **kwargs):
